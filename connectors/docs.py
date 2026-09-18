@@ -1,14 +1,14 @@
 ﻿"""
 connectors/docs.py
 ──────────────────
-Connector برای خوندن اسناد محلی:
+Connector for reading local documents:
   - PDF      →  pdfplumber (layout-aware) + pypdf (fallback)
   - DOCX     →  python-docx
-  - TXT / MD →  متن خام با تشخیص encoding خودکار
+  - TXT / MD →  raw text with automatic encoding detection
 
-خروجی: Generator[Document, None, None]
+Output: Generator[Document, None, None]
 
-استفاده:
+Usage:
     from connectors.docs import DocsConnector
     from connectors.base import Settings
 
@@ -29,7 +29,7 @@ from loguru import logger
 
 from connectors.base import BaseConnector, Document, Settings, SourceConfig, SourceType
 
-# ── Extension های پشتیبانی‌شده ───────────────────────────────────────────────
+# ── Supported extensions ─────────────────────────────────────────────────────
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md", ".markdown"}
 
 
@@ -39,8 +39,8 @@ SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md", ".markdown"}
 
 class DocsConnector(BaseConnector):
     """
-    اسناد محلی (PDF, DOCX, TXT, MD) رو از پوشه‌های تنظیم‌شده می‌خونه
-    و به Document تبدیل می‌کنه.
+    Reads local documents (PDF, DOCX, TXT, MD) from configured folders
+    and converts them into Document objects.
     """
 
     SOURCE_TYPE = SourceType.DOCS
@@ -52,8 +52,8 @@ class DocsConnector(BaseConnector):
         self, source_cfg: Optional[SourceConfig] = None
     ) -> Generator[Document, None, None]:
         """
-        همه‌ی فایل‌های معتبر رو پیدا می‌کنه و یکی‌یکی استخراج می‌کنه.
-        فایل‌هایی که خطا دارن رد می‌شن (کل pipeline متوقف نمی‌شه).
+        Finds all valid files and extracts them one by one.
+        Files that raise errors are skipped (the whole pipeline doesn't stop).
         """
         cfg = source_cfg or self.source_cfg
         if cfg is None:
@@ -65,9 +65,9 @@ class DocsConnector(BaseConnector):
                 if doc is not None:
                     yield doc
             except Exception as e:
-                logger.error(f"خطا در پردازش '{file_path.name}': {e}")
+                logger.error(f"Error processing '{file_path.name}': {e}")
 
-    # ── router: بر اساس پسوند، استخراج‌کننده مناسب رو صدا می‌زنه ─────────────
+    # ── router: based on extension, calls the appropriate extractor ──────────
 
     def _extract(self, path: Path) -> Optional[Document]:
         ext = path.suffix.lower()
@@ -79,24 +79,24 @@ class DocsConnector(BaseConnector):
         elif ext in {".txt", ".md", ".markdown"}:
             return self._extract_text(path)
         else:
-            logger.warning(f"پسوند ناشناخته رد شد: {path.name}")
+            logger.warning(f"Unknown extension skipped: {path.name}")
             return None
 
     # ── PDF ──────────────────────────────────────────────────────────────────
 
     def _extract_pdf(self, path: Path) -> Optional[Document]:
         """
-        اول با pdfplumber (layout-aware) تلاش می‌کنه.
-        اگه خروجی خالی بود، با pypdf دوباره امتحان می‌کنه.
+        First tries pdfplumber (layout-aware).
+        If the output is empty, retries with pypdf.
         """
         text = self._pdf_with_pdfplumber(path)
 
         if not text or len(text.strip()) < 20:
-            logger.debug(f"pdfplumber خروجی کافی نداد، fallback به pypdf: {path.name}")
+            logger.debug(f"pdfplumber returned insufficient output, falling back to pypdf: {path.name}")
             text = self._pdf_with_pypdf(path)
 
         if not text or not text.strip():
-            logger.warning(f"PDF خالی یا اسکن‌شده (بدون متن): {path.name}")
+            logger.warning(f"Empty or scanned PDF (no text): {path.name}")
             return None
 
         text = _clean_text(text)
@@ -113,7 +113,7 @@ class DocsConnector(BaseConnector):
         )
 
     def _pdf_with_pdfplumber(self, path: Path) -> str:
-        """pdfplumber: جدول‌ها و فاصله‌ی کاراکترها رو بهتر نگه می‌داره."""
+        """pdfplumber: preserves tables and character spacing better."""
         try:
             import pdfplumber
             pages_text: list[str] = []
@@ -124,11 +124,11 @@ class DocsConnector(BaseConnector):
                         pages_text.append(page_text)
             return "\n\n".join(pages_text)
         except Exception as e:
-            logger.debug(f"pdfplumber خطا داد ({path.name}): {e}")
+            logger.debug(f"pdfplumber raised an error ({path.name}): {e}")
             return ""
 
     def _pdf_with_pypdf(self, path: Path) -> str:
-        """pypdf: سریع‌تر، ولی layout رو کمتر حفظ می‌کنه."""
+        """pypdf: faster, but preserves layout less."""
         try:
             from pypdf import PdfReader
             reader = PdfReader(str(path))
@@ -139,40 +139,40 @@ class DocsConnector(BaseConnector):
                     pages_text.append(t)
             return "\n\n".join(pages_text)
         except Exception as e:
-            logger.debug(f"pypdf خطا داد ({path.name}): {e}")
+            logger.debug(f"pypdf raised an error ({path.name}): {e}")
             return ""
 
     # ── DOCX ─────────────────────────────────────────────────────────────────
 
     def _extract_docx(self, path: Path) -> Optional[Document]:
         """
-        با python-docx:
-          - متن پاراگراف‌ها
-          - متن داخل جدول‌ها
-          - هدرها و فوترها
+        With python-docx:
+          - paragraph text
+          - text inside tables
+          - headers and footers
         """
         try:
             from docx import Document as DocxDocument
             from docx.oxml.ns import qn
         except ImportError:
-            logger.error("python-docx نصب نیست: pip install python-docx")
+            logger.error("python-docx is not installed: pip install python-docx")
             return None
 
         try:
             doc = DocxDocument(str(path))
         except Exception as e:
-            logger.error(f"خطا در باز کردن DOCX '{path.name}': {e}")
+            logger.error(f"Error opening DOCX '{path.name}': {e}")
             return None
 
         parts: list[str] = []
 
-        # پاراگراف‌های اصلی
+        # Main paragraphs
         for para in doc.paragraphs:
             text = para.text.strip()
             if text:
                 parts.append(text)
 
-        # جدول‌ها
+        # Tables
         for table in doc.tables:
             rows_text: list[str] = []
             for row in table.rows:
@@ -182,7 +182,7 @@ class DocsConnector(BaseConnector):
             if rows_text:
                 parts.append("\n".join(rows_text))
 
-        # هدر و فوتر بخش‌ها
+        # Section headers and footers
         for section in doc.sections:
             for hf in [section.header, section.footer]:
                 if hf is not None:
@@ -193,12 +193,12 @@ class DocsConnector(BaseConnector):
 
         full_text = "\n\n".join(parts)
         if not full_text.strip():
-            logger.warning(f"DOCX خالی به نظر می‌رسد: {path.name}")
+            logger.warning(f"DOCX appears to be empty: {path.name}")
             return None
 
         full_text = _clean_text(full_text)
 
-        # متادیتای core properties
+        # Core properties metadata
         props = doc.core_properties
         created_at  = _safe_datetime(getattr(props, "created", None))
         modified_at = _safe_datetime(getattr(props, "modified", None))
@@ -219,21 +219,21 @@ class DocsConnector(BaseConnector):
 
     def _extract_text(self, path: Path) -> Optional[Document]:
         """
-        فایل‌های متنی ساده و Markdown.
-        برای MD: هدرها رو حفظ می‌کنه ولی syntax های اضافه رو نمی‌زنه
-        (chunker بعداً می‌تونه از هدرها برای تقسیم استفاده کنه).
+        Plain text and Markdown files.
+        For MD: preserves headers but doesn't strip extra syntax
+        (the chunker can later use headers for splitting).
         """
         try:
             content = self._read_text_file(path)
         except Exception as e:
-            logger.error(f"خطا در خواندن فایل '{path.name}': {e}")
+            logger.error(f"Error reading file '{path.name}': {e}")
             return None
 
         if not content.strip():
-            logger.warning(f"فایل متنی خالی: {path.name}")
+            logger.warning(f"Empty text file: {path.name}")
             return None
 
-        # برای Markdown یه عنوان از اولین هدر # استخراج می‌کنیم
+        # For Markdown, extract a title from the first # header
         title = path.stem
         fmt = path.suffix.lower().lstrip(".")
 
@@ -251,27 +251,27 @@ class DocsConnector(BaseConnector):
 
 
 # =============================================================================
-#  توابع کمکی (private)
+#  Helper functions (private)
 # =============================================================================
 
 def _clean_text(text: str) -> str:
     """
-    متن خام رو تمیز می‌کنه:
-      - فاصله‌های اضافه
-      - کاراکترهای کنترلی (به جز newline و tab)
-      - بیش از دو خط خالی متوالی
+    Cleans raw text:
+      - extra spaces
+      - control characters (except newline and tab)
+      - more than two consecutive blank lines
     """
-    # کاراکترهای کنترلی غیر از \n و \t
+    # Control characters other than \n and \t
     text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)
-    # فاصله‌های افقی اضافه در هر خط
+    # Extra horizontal spaces on each line
     text = re.sub(r"[^\S\n]+", " ", text)
-    # بیش از دو خط خالی
+    # More than two blank lines
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
 
 def _extract_md_title(content: str) -> Optional[str]:
-    """اولین هدر # در Markdown رو به عنوان title برمی‌گردونه."""
+    """Returns the first # header in Markdown as the title."""
     for line in content.splitlines():
         line = line.strip()
         if line.startswith("# "):
@@ -280,7 +280,7 @@ def _extract_md_title(content: str) -> Optional[str]:
 
 
 def _safe_datetime(value: object) -> Optional[datetime]:
-    """مقادیر مختلف رو به datetime تبدیل می‌کنه (یا None برمی‌گردونه)."""
+    """Converts various values to datetime (or returns None)."""
     if value is None:
         return None
     if isinstance(value, datetime):
@@ -292,7 +292,7 @@ def _safe_datetime(value: object) -> Optional[datetime]:
 
 
 def _pdf_metadata(path: Path) -> dict:
-    """متادیتای PDF رو با pypdf استخراج می‌کنه."""
+    """Extracts PDF metadata using pypdf."""
     meta: dict = {}
     try:
         from pypdf import PdfReader
@@ -308,13 +308,13 @@ def _pdf_metadata(path: Path) -> dict:
         meta["created_at"] = _parse_pdf_date(info.get("/CreationDate"))
 
     except Exception as e:
-        logger.debug(f"استخراج متادیتای PDF ناموفق ({path.name}): {e}")
+        logger.debug(f"Failed to extract PDF metadata ({path.name}): {e}")
 
     return meta
 
 
 def _strip_pdf_meta(value: object) -> str:
-    """مقادیر متادیتای PDF گاهی bytes یا None هستن."""
+    """PDF metadata values are sometimes bytes or None."""
     if value is None:
         return ""
     if isinstance(value, bytes):
@@ -324,15 +324,15 @@ def _strip_pdf_meta(value: object) -> str:
 
 def _parse_pdf_date(raw: object) -> Optional[datetime]:
     """
-    فرمت تاریخ PDF: D:20230415120000+03'30'
-    تبدیل به datetime.
+    PDF date format: D:20230415120000+03'30'
+    Converts to datetime.
     """
     if not raw:
         return None
     s = _strip_pdf_meta(raw)
-    # حذف پیشوند D:
+    # Remove the D: prefix
     s = re.sub(r"^D:", "", s)
-    # فقط ۱۴ کاراکتر اول (YYYYMMDDHHmmss)
+    # Only the first 14 characters (YYYYMMDDHHmmss)
     s = s[:14]
     try:
         return datetime.strptime(s, "%Y%m%d%H%M%S")
