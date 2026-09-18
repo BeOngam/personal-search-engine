@@ -1,0 +1,111 @@
+sources:
+  docs:
+    enabled: true
+    paths:
+      - "~/Documents"
+      - "~/Desktop/notes"
+    extensions:
+      - ".pdf"
+      - ".docx"
+      - ".txt"
+      - ".md"
+    recursive: true
+
+  notes:
+    enabled: false
+    paths:
+      - "~/obsidian-vault"
+    extensions:
+      - ".md"
+    recursive: true
+
+  chats:
+    enabled: false
+    paths:
+      - "~/chats-export"
+    extensions:
+      - ".json"
+      - ".txt"
+    recursive: false
+
+  email:
+    enabled: false
+    paths:
+      - "~/mail"
+    extensions:
+      - ".mbox"
+      - ".eml"
+    recursive: false
+
+chunking:
+  strategy: "recursive"
+  chunk_size: 512
+  chunk_overlap: 64
+  min_chunk_size: 50
+  tokenizer: "cl100k_base"
+
+embedding:
+  model: "sentence-transformers/all-MiniLM-L6-v2"
+  device: "cpu"
+  batch_size: 32
+  normalize: true
+
+vector_db:
+  host: "localhost"
+  port: 6333
+  collection_name: "personal_search"
+  distance: "Cosine"
+  mode: "server"
+
+fts_db:
+  path: "./data/fts.db"
+  table_name: "documents"
+  language: "unicode61"
+
+metadata_store:
+  path: "./data/metadata.db"
+
+search:
+  top_k_vector: 20
+  top_k_fts: 20
+  top_k_final: 5
+  rrf_k: 60
+  vector_weight: 0.7
+  fts_weight: 0.3
+
+reranker:
+  enabled: true
+  model: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+  device: "cpu"
+  batch_size: 16
+
+llm:
+  provider: "ollama"
+  model: "llama3.2"
+  host: "http://localhost:11434"
+  temperature: 0.1
+  max_tokens: 1024
+  system_prompt: |
+    You are a personal search assistant. Answer the user's question based on the provided documents.
+    If the answer is not in the documents, honestly say you don't know.
+    For each piece of information, mention the source (file name).
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+  reload: false
+
+ui:
+  port: 8501
+  page_title: "Personal Search"
+  results_per_page: 10
+
+scheduler:
+  enabled: true
+  cron: "0 2 * * *"
+
+logging:
+  level: "INFO"
+  file: "./logs/app.log"
+  rotation: "10 MB"
+  retention: "7 days"
