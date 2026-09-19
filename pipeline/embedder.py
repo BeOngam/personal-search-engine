@@ -1,5 +1,4 @@
-﻿
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Generator
@@ -35,13 +34,13 @@ class EmbeddedChunk:
 class Embedder:
     def __init__(self, settings: Settings):
         self.cfg = settings.embedding
-        logger.info(f"بارگذاری مدل embedding: {self.cfg.model}")
+        logger.info(f"Loading embedding model: {self.cfg.model}")
         self._model = SentenceTransformer(
             self.cfg.model,
             device=self.cfg.device,
         )
         self._dim = self._model.get_sentence_embedding_dimension()
-        logger.info(f"مدل آماده — بُعد: {self._dim}, device: {self.cfg.device}")
+        logger.info(f"Model ready - dim: {self._dim}, device: {self.cfg.device}")
 
     @property
     def dim(self) -> int:
@@ -90,7 +89,7 @@ class Embedder:
                 )
             )
 
-        logger.debug(f"batch {len(batch)} chunk embed شد.")
+        logger.debug(f"Batch of {len(batch)} chunks embedded.")
         return result
 
     def embed_query(self, query: str) -> np.ndarray:
