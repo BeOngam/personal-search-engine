@@ -1,54 +1,47 @@
 # ─── Connectors ───────────────────────────────────────────────
-pypdf==4.3.1                # PDF text extraction
-pdfplumber==0.11.4          # PDF tables + layout-aware extraction
-python-docx==1.1.2          # Word documents (.docx)
-beautifulsoup4==4.12.3      # HTML / web page parsing
-watchdog==4.0.1             # File system change detection (auto-reindex)
-chardet==5.2.0              # Encoding detection for text files
+pypdf
+pdfplumber
+python-docx
+beautifulsoup4
+watchdog
+chardet
 
 # ─── Chunking ─────────────────────────────────────────────────
-langchain-text-splitters==0.2.4   # RecursiveCharacterTextSplitter
-tiktoken==0.7.0                   # Token counting (OpenAI-compatible)
-nltk==3.8.1                       # Sentence tokenization
+langchain-text-splitters
+tiktoken
+nltk
 
 # ─── Embedding ────────────────────────────────────────────────
-sentence-transformers==3.0.1      # Local embedding models (nomic, MiniLM, etc.)
-torch==2.3.1                      # Required by sentence-transformers
-transformers==4.42.4              # HuggingFace model loading
-ollama==0.3.0                     # Ollama Python client (optional local LLM)
+sentence-transformers
+torch
+transformers
+ollama
 
 # ─── Vector Storage ───────────────────────────────────────────
-qdrant-client==1.10.1             # Qdrant vector database client
-
-# ─── Full-Text Search ─────────────────────────────────────────
-# SQLite FTS5 is built into Python's stdlib sqlite3 — no extra install needed
+qdrant-client
 
 # ─── API Server ───────────────────────────────────────────────
-fastapi==0.111.1                  # REST API framework
-uvicorn[standard]==0.30.3         # ASGI server
-pydantic==2.8.2                   # Request/response validation
-pydantic-settings==2.3.4          # Config from YAML / env vars
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
 
 # ─── RAG / LLM ────────────────────────────────────────────────
-langchain==0.2.11                 # RAG orchestration
-langchain-community==0.2.11       # Community integrations (Ollama, etc.)
-langchain-huggingface==0.0.3      # HuggingFace embeddings bridge
-
-# ─── Reranker ─────────────────────────────────────────────────
-# Uses sentence-transformers cross-encoder — already listed above
+langchain
+langchain-community
+langchain-huggingface
 
 # ─── Scheduler ────────────────────────────────────────────────
-apscheduler==3.10.4               # Background reindex jobs
+apscheduler
 
-# ─── UI (pick one) ────────────────────────────────────────────
-streamlit==1.36.0                 # Quick web UI (recommended for v1)
-# gradio==4.38.1                  # Alternative UI
+# ─── UI ───────────────────────────────────────────────────────
+streamlit
 
 # ─── Utilities ────────────────────────────────────────────────
-loguru==0.7.2                     # Better logging
-rich==13.7.1                      # Pretty terminal output
-python-dotenv==1.0.1              # Load .env files
-PyYAML==6.0.2                     # config.yaml parsing
-httpx==0.27.0                     # Async HTTP client
-tqdm==4.66.4                      # Progress bars during indexing
-numpy==1.26.4                     # Array ops (used by embedders)
+loguru
+rich
+python-dotenv
+PyYAML
+httpx
+tqdm
+numpy
