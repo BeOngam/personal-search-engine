@@ -49,7 +49,7 @@ class Indexer:
         enabled = self.settings.enabled_sources()
 
         if not enabled:
-            logger.warning("هیچ منبع فعالی در config.yaml تعریف نشده.")
+            logger.warning("No enabled sources found in config.yaml.")
             return stats_list
 
         connector_map = {
@@ -58,7 +58,7 @@ class Indexer:
 
         for source_name in enabled:
             if source_name not in connector_map:
-                logger.warning(f"connector برای '{source_name}' هنوز پیاده‌سازی نشده — رد شد.")
+                logger.warning(f"Connector for '{source_name}' is not implemented yet — skipped.")
                 continue
             connector = connector_map[source_name]()
             stats = self._index_source(source_name, connector, force=force)
@@ -70,11 +70,11 @@ class Indexer:
         from pathlib import Path
 
         stats = IndexStats(source=source_name)
-        logger.info(f"شروع ایندکس منبع: '{source_name}' (force={force})")
+        logger.info(f"Starting indexing for source: '{source_name}' (force={force})")
 
         source_cfg = self.settings.get_source(source_name)
         if source_cfg is None or not source_cfg.enabled:
-            logger.info(f"منبع '{source_name}' غیرفعال است.")
+            logger.info(f"Source '{source_name}' is disabled.")
             return stats
 
         for doc in connector.run():
@@ -82,20 +82,20 @@ class Indexer:
             path = Path(doc.source_path)
 
             if not force and not self.metadata_store.needs_indexing(path):
-                logger.debug(f"تغییری ندارد، رد شد: {path.name}")
+                logger.debug(f"No changes detected, skipped: {path.name}")
                 stats.skipped_files += 1
                 continue
 
             try:
                 old_doc_id = self.metadata_store.get_doc_id(path)
                 if old_doc_id and old_doc_id != doc.doc_id:
-                    logger.debug(f"نسخه‌ی قدیمی حذف می‌شود: {old_doc_id}")
+                    logger.debug(f"Removing old version: {old_doc_id}")
                     self.vector_db.delete_by_doc_id(old_doc_id)
                     self.fts_db.delete_by_doc_id(old_doc_id)
 
                 chunks = self.chunker.chunk_document(doc)
                 if not chunks:
-                    logger.warning(f"هیچ chunk‌ای تولید نشد: {path.name}")
+                    logger.warning(f"No chunks were produced: {path.name}")
                     stats.errors += 1
                     stats.failed_files.append(str(path))
                     continue
@@ -108,14 +108,14 @@ class Indexer:
 
                 stats.indexed_files += 1
                 stats.total_chunks += len(embedded)
-                logger.info(f"✓ '{path.name}' — {len(embedded)} chunk ایندکس شد.")
+                logger.info(f"✓ '{path.name}' — {len(embedded)} chunks indexed.")
 
             except Exception as e:
-                logger.error(f"خطا در ایندکس '{path.name}': {e}")
+                logger.error(f"Error indexing '{path.name}': {e}")
                 stats.errors += 1
                 stats.failed_files.append(str(path))
 
-        logger.info(f"پایان ایندکس '{source_name}': {stats}")
+        logger.info(f"Finished indexing '{source_name}': {stats}")
         return stats
 
     def reindex_file(self, file_path: str) -> Optional[IndexStats]:
@@ -126,11 +126,11 @@ class Indexer:
         path = Path(file_path).expanduser().resolve()
 
         if not path.exists():
-            logger.error(f"فایل وجود ندارد: {path}")
+            logger.error(f"File does not exist: {path}")
             return None
 
         if path.suffix.lower() not in SUPPORTED_EXTENSIONS:
-            logger.error(f"پسوند پشتیبانی نمی‌شود: {path.suffix}")
+            logger.error(f"Unsupported extension: {path.suffix}")
             return None
 
         tmp_cfg = SourceConfig(
