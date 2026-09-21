@@ -36,60 +36,8 @@ Your personal data — PDFs, Word docs, notes, emails, chat exports — is scatt
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                          DATA SOURCES                            │
-│         (local files: PDFs, DOCX, TXT, MD, email, chats)         │
-└───────────────────────────────┬───────────────────────────────────┘
-                                 │
-                         connectors/*.py
-                    (extract raw text → Document)
-                                 │
-                                 ▼
-                       pipeline/chunker.py
-              (Document → list[Chunk], token-aware splitting)
-                                 │
-                                 ▼
-                      pipeline/embedder.py
-             (Chunk → EmbeddedChunk, sentence-transformers)
-                                 │
-                  ┌──────────────┴──────────────┐
-                  ▼                              ▼
-        storage/vector_db.py            storage/fts_db.py
-        (Qdrant — semantic search)      (SQLite FTS5 — keyword search)
-                  │                              │
-                  └──────────────┬───────────────┘
-                                 ▼
-                      pipeline/indexer.py
-              (orchestrates the whole pipeline end-to-end,
-               tracks file state via storage/metadata_store.py)
+![Personal Search Engine architecture](architecture.svg)
 
-──────────────────────────── QUERY TIME ────────────────────────────
-
-              user query ──► api/chat.py (FastAPI)
-                                 │
-                    ┌────────────┴────────────┐
-                    ▼                          ▼
-          storage/vector_db.py       storage/fts_db.py
-          (top-K semantic hits)      (top-K keyword hits)
-                    │                          │
-                    └────────────┬─────────────┘
-                                 ▼
-                       api/reranker.py
-        (Reciprocal Rank Fusion + cross-encoder reranking)
-                                 │
-                                 ▼
-                     final ranked results
-                                 │
-                    ┌────────────┴────────────┐
-                    ▼                          ▼
-              /search endpoint          /chat endpoint
-             (raw ranked chunks)   (chunks → context → local LLM
-                                     via Ollama → grounded answer)
-                                 │
-                                 ▼
-                        ui/app.py (Streamlit)
-```
 
 Two independent indexes are kept in sync for every chunk:
 
