@@ -1,0 +1,65 @@
+version: "3.9"
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.10.1
+    container_name: pse-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pse-api
+    command: ["python", "main.py", "serve"]
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ${DOCS_PATH:-./sample-data}:/data/docs:ro
+    depends_on:
+      - qdrant
+    environment:
+      - QDRANT_HOST=qdrant
+    restart: unless-stopped
+
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pse-ui
+    command: ["python", "main.py", "ui", "--port", "8501"]
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pse-scheduler
+    command: ["python", "main.py", "scheduler"]
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ${DOCS_PATH:-./sample-data}:/data/docs:ro
+    depends_on:
+      - qdrant
+    environment:
+      - QDRANT_HOST=qdrant
+    restart: unless-stopped
+
+volumes:
+  qdrant_data:
