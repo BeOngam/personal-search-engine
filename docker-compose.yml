@@ -42,6 +42,8 @@ services:
       - ./config.yaml:/app/config.yaml:ro
     depends_on:
       - api
+    environment:
+      - API_HOST=api
     restart: unless-stopped
 
   scheduler:

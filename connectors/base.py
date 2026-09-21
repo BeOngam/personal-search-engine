@@ -108,6 +108,18 @@ class SourceConfig(BaseModel):
     recursive: bool = True
 
 
+class APISettings(BaseModel):
+    host: str = "0.0.0.0"
+    port: int = 8000
+    reload: bool = False
+
+
+class UISettings(BaseModel):
+    port: int = 8501
+    page_title: str = "Personal Search"
+    results_per_page: int = 10
+
+
 class SchedulerSettings(BaseModel):
     enabled: bool = True
     cron: str = "0 2 * * *"
@@ -136,6 +148,8 @@ class Settings(BaseModel):
     search: SearchSettings = Field(default_factory=SearchSettings)
     reranker: RerankerSettings = Field(default_factory=RerankerSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
+    api: APISettings = Field(default_factory=APISettings)
+    ui: UISettings = Field(default_factory=UISettings)
     scheduler: SchedulerSettings = Field(default_factory=SchedulerSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
 
@@ -151,9 +165,31 @@ class Settings(BaseModel):
             for name, cfg in raw_sources.items()
         }
 
+        # Warn about unknown top-level keys instead of silently dropping them
+        known = set(cls.model_fields) - {"sources"}
+        unknown = [key for key in raw if key not in known]
+        if unknown:
+            logger.warning(f"Unknown keys in {path} were ignored: {unknown}")
+
         instance = cls(sources=parsed_sources, **raw)
+
+        # Environment overrides (useful in Docker: QDRANT_HOST=qdrant)
+        instance._apply_env_overrides()
+
         logger.info(f"Settings loaded from {path}.")
         return instance
+
+    def _apply_env_overrides(self) -> None:
+        """Let a few environment variables override config.yaml values."""
+        qdrant_host = os.getenv("QDRANT_HOST")
+        if qdrant_host:
+            self.vector_db.host = qdrant_host
+        qdrant_port = os.getenv("QDRANT_PORT")
+        if qdrant_port and qdrant_port.isdigit():
+            self.vector_db.port = int(qdrant_port)
+        llm_host = os.getenv("LLM_HOST")
+        if llm_host:
+            self.llm.host = llm_host
 
     def get_source(self, name: str) -> Optional[SourceConfig]:
         """Return settings for a specific source."""

@@ -1,12 +1,16 @@
 ﻿from __future__ import annotations
 
+import os
+
 import httpx
 import streamlit as st
 
 from connectors.base import Settings
 
 settings = Settings.from_yaml("config.yaml")
-API_BASE = f"http://localhost:{settings.api.port}"
+# In Docker the API runs in another container, so the host must be overridable.
+API_HOST = os.getenv("API_HOST", "localhost")
+API_BASE = f"http://{API_HOST}:{settings.api.port}"
 
 st.set_page_config(
     page_title=settings.ui.page_title,

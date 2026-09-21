@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 
 import numpy as np
@@ -9,6 +10,21 @@ from qdrant_client.http import models as qmodels
 
 from connectors.base import Settings
 from pipeline.embedder import EmbeddedChunk
+
+
+# Fixed namespace so the same chunk_id always maps to the same point id.
+_POINT_NAMESPACE = uuid.UUID("6f1a6b1c-6f1a-5a1c-9a1c-6f1a6b1c6f1a")
+
+
+def _point_id(chunk_id: str) -> str:
+    """
+    Deterministic point id for Qdrant.
+
+    NOTE: Python's built-in hash() is salted per process (PYTHONHASHSEED),
+    so using it here would produce a different id for the same chunk on every
+    run and duplicate every vector instead of overwriting it. uuid5 is stable.
+    """
+    return str(uuid.uuid5(_POINT_NAMESPACE, chunk_id))
 
 
 @dataclass
@@ -34,13 +50,13 @@ class VectorDB:
         if self.cfg.mode == "in_memory":
             logger.info("Qdrant in-memory mode")
             return QdrantClient(":memory:")
-        logger.info(f"اتصال به Qdrant: {self.cfg.host}:{self.cfg.port}")
+        logger.info(f"Connecting to Qdrant: {self.cfg.host}:{self.cfg.port}")
         return QdrantClient(host=self.cfg.host, port=self.cfg.port)
 
     def _ensure_collection(self) -> None:
         existing = [c.name for c in self._client.get_collections().collections]
         if self.cfg.collection_name in existing:
-            logger.debug(f"کالکشن '{self.cfg.collection_name}' از قبل وجود دارد.")
+            logger.debug(f"Collection '{self.cfg.collection_name}' already exists.")
             return
 
         distance_map = {
@@ -54,7 +70,7 @@ class VectorDB:
             collection_name=self.cfg.collection_name,
             vectors_config=qmodels.VectorParams(size=self._dim, distance=distance),
         )
-        logger.info(f"کالکشن '{self.cfg.collection_name}' ساخته شد (dim={self._dim}).")
+        logger.info(f"Collection '{self.cfg.collection_name}' created (dim={self._dim}).")
 
     def upsert(self, chunks: list[EmbeddedChunk]) -> None:
         if not chunks:
@@ -62,7 +78,7 @@ class VectorDB:
 
         points = [
             qmodels.PointStruct(
-                id=abs(hash(c.chunk_id)) % (2 ** 63),
+                id=_point_id(c.chunk_id),
                 vector=c.embedding.tolist(),
                 payload={
                     "chunk_id":   c.chunk_id,
@@ -81,7 +97,7 @@ class VectorDB:
             collection_name=self.cfg.collection_name,
             points=points,
         )
-        logger.debug(f"{len(points)} بردار در Qdrant ذخیره شد.")
+        logger.debug(f"{len(points)} vectors stored in Qdrant.")
 
     def search(
         self,
@@ -124,7 +140,7 @@ class VectorDB:
                 )
             ),
         )
-        logger.debug(f"بردارهای doc_id='{doc_id}' از Qdrant حذف شدند.")
+        logger.debug(f"Vectors for doc_id='{doc_id}' deleted from Qdrant.")
 
     def count(self) -> int:
         return self._client.count(collection_name=self.cfg.collection_name).count

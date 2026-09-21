@@ -1,5 +1,4 @@
-﻿
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Generator
@@ -57,7 +56,7 @@ class Chunker:
         for i, text in enumerate(raw_chunks):
             token_count = self._count_tokens(text)
             if token_count < self.cfg.min_chunk_size:
-                logger.debug(f"chunk کوچک رد شد (doc={doc.doc_id}, idx={i}, tokens={token_count})")
+                logger.debug(f"Small chunk skipped (doc={doc.doc_id}, idx={i}, tokens={token_count})")
                 continue
 
             chunk_id = f"{doc.doc_id}_{i:04d}"
@@ -75,7 +74,7 @@ class Chunker:
                 )
             )
 
-        logger.debug(f"'{doc.title}' → {len(chunks)} chunk")
+        logger.debug(f"'{doc.title}' -> {len(chunks)} chunks")
         return chunks
 
     def chunk_documents(

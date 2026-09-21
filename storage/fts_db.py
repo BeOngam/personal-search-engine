@@ -30,7 +30,7 @@ class FTSDB:
         self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._create_tables()
-        logger.info(f"SQLite FTS5 آماده: {db_path}")
+        logger.info(f"SQLite FTS5 ready: {db_path}")
 
     def _create_tables(self) -> None:
         self._conn.executescript(f"""
@@ -94,7 +94,7 @@ class FTSDB:
             fts_rows,
         )
         self._conn.commit()
-        logger.debug(f"{len(chunks)} chunk در FTS ذخیره شد.")
+        logger.debug(f"{len(chunks)} chunks stored in FTS.")
 
     def search(self, query: str, top_k: int | None = None) -> list[FTSResult]:
         import json
@@ -154,7 +154,7 @@ class FTSDB:
             f"DELETE FROM doc_meta WHERE doc_id = ?", (doc_id,)
         )
         self._conn.commit()
-        logger.debug(f"{len(ids)} chunk برای doc_id='{doc_id}' از FTS حذف شد.")
+        logger.debug(f"{len(ids)} chunks for doc_id='{doc_id}' deleted from FTS.")
 
     def count(self) -> int:
         row = self._conn.execute(
