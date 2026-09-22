@@ -320,6 +320,26 @@ Everything downstream — chunking, embedding, storage, search, RAG — works au
 - [ ] OCR fallback for scanned PDFs with no extractable text
 
 ---
+# 🔑 Google API Credentials Setup
+
+This folder requires a `credentials.json` file to connect to the Gmail API. 
+**Do not use the `credentials.json.example` file directly — it will not work.**
+
+## How to get your own `credentials.json`:
+
+1. Go to the [Google Cloud Console](https://console.cloud.google.com/).
+2. Create a new project and **Enable the Gmail API**.
+3. Go to **Credentials** → **Create Credentials** → **OAuth client ID**.
+4. Select **Desktop app** as the application type.
+5. Download the JSON file and rename it to **`credentials.json`**.
+6. Place the file in the **root directory** of this project.
+
+## ⚠️ Security Warning
+
+Never commit your real `credentials.json` or `token.json` to GitHub.
+They are already listed in `.gitignore` for your safety.
+
+Use the `credentials.json.example` file only as a structural reference.
 
 ## Contributing
 
