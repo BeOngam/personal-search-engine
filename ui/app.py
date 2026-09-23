@@ -5,9 +5,12 @@ import os
 import httpx
 import streamlit as st
 
+from pathlib import Path
+
 from connectors.base import Settings
 
-settings = Settings.from_yaml("config.yaml")
+CONFIG_PATH = Path(__file__).resolve().parents[1] / "config.yaml"
+settings = Settings.from_yaml(CONFIG_PATH)
 # In Docker the API runs in another container, so the host must be overridable.
 API_HOST = os.getenv("API_HOST", "localhost")
 API_BASE = f"http://{API_HOST}:{settings.api.port}"

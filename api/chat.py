@@ -8,7 +8,12 @@ from fastapi import FastAPI, HTTPException
 from loguru import logger
 from pydantic import BaseModel
 
+import os
+
 from connectors.base import Settings
+
+CONFIG_PATH = os.getenv("CONFIG_PATH", "config.yaml")
+settings = Settings.from_yaml(CONFIG_PATH)
 from pipeline.embedder import Embedder
 from api.reranker import Reranker, SearchResult
 from storage.fts_db import FTSDB
@@ -19,7 +24,8 @@ _state: dict = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    settings = Settings.from_yaml("config.yaml")
+    global _state
+    settings = Settings.from_yaml(os.getenv("CONFIG_PATH", "config.yaml"))
     embedder = Embedder(settings)
 
     _state["settings"] = settings

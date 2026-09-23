@@ -139,9 +139,16 @@ class Indexer:
             extensions=[path.suffix.lower()],
             recursive=False,
         )
+        original_cfg = self.settings.sources.get("docs")
         self.settings.sources["docs"] = tmp_cfg
         connector = DocsConnector(self.settings)
-        return self._index_source("docs", connector, force=True)
+        try:
+            return self._index_source("docs", connector, force=True)
+        finally:
+            if original_cfg is not None:
+                self.settings.sources["docs"] = original_cfg
+            else:
+                self.settings.sources.pop("docs", None)
 
     def close(self) -> None:
         self.fts_db.close()
