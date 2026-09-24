@@ -1,0 +1,65 @@
+# Git
+.git
+.gitignore
+.github
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Local/runtime data
+data/
+logs/
+sample-data/
+
+# Tests
+**/test_*.py
+**/*_test.py
+tests/
+
+# Local configuration / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+token.json
+client_secret*.json
+service-account*.json
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+docker-compose.yml
+docker-compose.*.yml
+.dockerignore
+
+# Build/package artifacts
+build/
+dist/
+*.egg-info/
+
+# Documentation / project-only assets
+README.md
+architecture.svg

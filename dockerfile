@@ -6,8 +6,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
+# اول requirements.txt رو کپی کن (این خیلی مهمه!)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+
+RUN pip install \
+    --default-timeout=1000 \
+    --retries 20 \
+    -i https://mirrors.aliyun.com/pypi/simple \
+    --trusted-host mirrors.aliyun.com \
+    -r requirements.txt
 
 COPY . .
 
