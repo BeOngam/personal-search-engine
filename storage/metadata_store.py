@@ -3,7 +3,7 @@
 import hashlib
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -63,10 +63,55 @@ class MetadataStore:
         current_hash = self.compute_hash(path)
         return row["content_hash"] != current_hash
 
+    def needs_document_indexing(self, source_path: str, content: str) -> bool:
+        row = self._conn.execute(
+            "SELECT content_hash FROM indexed_files WHERE path = ?",
+            (source_path,),
+        ).fetchone()
+        if row is None:
+            return True
+
+        current_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        return row["content_hash"] != current_hash
+
+    def record_document(
+        self,
+        source_path: str,
+        doc_id: str,
+        source_type: str,
+        content: str,
+        modified_at: Optional[datetime] = None,
+    ) -> None:
+        content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        indexed_at = datetime.now(timezone.utc).isoformat()
+
+        self._conn.execute(
+            """
+            INSERT INTO indexed_files
+                (path, doc_id, content_hash, source_type, indexed_at, file_modified_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(path) DO UPDATE SET
+                doc_id           = excluded.doc_id,
+                content_hash     = excluded.content_hash,
+                source_type      = excluded.source_type,
+                indexed_at       = excluded.indexed_at,
+                file_modified_at = excluded.file_modified_at
+            """,
+            (
+                source_path,
+                doc_id,
+                content_hash,
+                source_type,
+                indexed_at,
+                modified_at.isoformat() if modified_at else None,
+            ),
+        )
+        self._conn.commit()
+
     def record(self, path: Path, doc_id: str, source_type: str) -> None:
         content_hash = self.compute_hash(path)
         file_modified_at = datetime.fromtimestamp(path.stat().st_mtime).isoformat()
-        indexed_at = datetime.utcnow().isoformat()
+        indexed_at = datetime.now(timezone.utc).isoformat()
 
         self._conn.execute(
             """
@@ -104,9 +149,10 @@ class MetadataStore:
             ),
         )
 
-    def get_doc_id(self, path: Path) -> Optional[str]:
+    def get_doc_id(self, path: Path | str) -> Optional[str]:
+        key = str(path) if isinstance(path, Path) else path
         row = self._conn.execute(
-            "SELECT doc_id FROM indexed_files WHERE path = ?", (str(path),)
+            "SELECT doc_id FROM indexed_files WHERE path = ?", (key,)
         ).fetchone()
         return row["doc_id"] if row else None
 

@@ -7,6 +7,7 @@ from loguru import logger
 
 from connectors.base import Settings
 from connectors.docs import DocsConnector
+from connectors.email import EmailConnector
 from pipeline.chunker import Chunker
 from pipeline.embedder import Embedder
 from storage.fts_db import FTSDB
@@ -54,6 +55,7 @@ class Indexer:
 
         connector_map = {
             "docs": lambda: DocsConnector(self.settings),
+            "email": lambda: EmailConnector(self.settings),
         }
 
         for source_name in enabled:
@@ -79,10 +81,17 @@ class Indexer:
 
         for doc in connector.run():
             stats.total_files += 1
-            path = Path(doc.source_path)
+            is_email = source_name == "email"
+            path = doc.source_path if is_email else Path(doc.source_path)
+            display_name = doc.title or doc.source_path
 
-            if not force and not self.metadata_store.needs_indexing(path):
-                logger.debug(f"No changes detected, skipped: {path.name}")
+            needs_indexing = (
+                self.metadata_store.needs_document_indexing(path, doc.content)
+                if is_email
+                else self.metadata_store.needs_indexing(path)
+            )
+            if not force and not needs_indexing:
+                logger.debug(f"No changes detected, skipped: {display_name}")
                 stats.skipped_files += 1
                 continue
 
@@ -95,25 +104,34 @@ class Indexer:
 
                 chunks = self.chunker.chunk_document(doc)
                 if not chunks:
-                    logger.warning(f"No chunks were produced: {path.name}")
+                    logger.warning(f"No chunks were produced: {display_name}")
                     stats.errors += 1
-                    stats.failed_files.append(str(path))
+                    stats.failed_files.append(doc.source_path)
                     continue
 
                 embedded = list(self.embedder.embed_chunks(iter(chunks)))
 
                 self.vector_db.upsert(embedded)
                 self.fts_db.upsert(embedded)
-                self.metadata_store.record(path, doc.doc_id, source_name)
+                if is_email:
+                    self.metadata_store.record_document(
+                        path,
+                        doc.doc_id,
+                        source_name,
+                        doc.content,
+                        doc.modified_at,
+                    )
+                else:
+                    self.metadata_store.record(path, doc.doc_id, source_name)
 
                 stats.indexed_files += 1
                 stats.total_chunks += len(embedded)
-                logger.info(f"✓ '{path.name}' — {len(embedded)} chunks indexed.")
+                logger.info(f"✓ '{display_name}' — {len(embedded)} chunks indexed.")
 
             except Exception as e:
-                logger.error(f"Error indexing '{path.name}': {e}")
+                logger.error(f"Error indexing '{display_name}': {e}")
                 stats.errors += 1
-                stats.failed_files.append(str(path))
+                stats.failed_files.append(doc.source_path)
 
         logger.info(f"Finished indexing '{source_name}': {stats}")
         return stats

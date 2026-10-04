@@ -83,12 +83,16 @@ class EmailConnector(BaseConnector):
             )
         ).expanduser()
 
-        self.query = os.getenv("GMAIL_QUERY", "")
+        self.query = os.getenv(
+            "GMAIL_QUERY",
+            self.source_cfg.query if self.source_cfg else "",
+        )
 
         self.max_results = _env_int(
             "GMAIL_MAX_RESULTS",
-            100,
+            self.source_cfg.max_results if self.source_cfg else 100,
             minimum=1,
+            maximum=500,
         )
 
         self._service = None
@@ -104,15 +108,16 @@ class EmailConnector(BaseConnector):
         source_cfg: Optional[SourceConfig] = None,
     ) -> Generator[Document, None, None]:
         """
-        Fetch Gmail messages matching GMAIL_QUERY.
+        Fetch Gmail messages matching the configured Gmail query.
         """
 
         service = self._get_service()
 
         page_token: Optional[str] = None
         total = 0
+        processed = 0
 
-        while True:
+        while processed < self.max_results:
             response = (
                 service.users()
                 .messages()
@@ -126,11 +131,15 @@ class EmailConnector(BaseConnector):
             )
 
             for item in response.get("messages", []):
+                if processed >= self.max_results:
+                    break
+
                 message_id = item.get("id")
 
                 if not message_id:
                     continue
 
+                processed += 1
                 try:
                     message = (
                         service.users()
@@ -159,7 +168,7 @@ class EmailConnector(BaseConnector):
 
             page_token = response.get("nextPageToken")
 
-            if not page_token:
+            if processed >= self.max_results or not page_token:
                 break
 
         logger.info(
@@ -307,6 +316,20 @@ class EmailConnector(BaseConnector):
             )
             return None
 
+        searchable_content = "\n".join(
+            part
+            for part in (
+                f"Subject: {subject}" if subject else "",
+                f"From: {sender}" if sender else "",
+                f"To: {recipients}" if recipients else "",
+                f"Cc: {cc}" if cc else "",
+                f"Date: {date_raw}" if date_raw else "",
+                "",
+                content,
+            )
+            if part
+        )
+
         created_at = _parse_email_date(
             date_raw
         )
@@ -342,7 +365,7 @@ class EmailConnector(BaseConnector):
         }
 
         return Document(
-            content=content,
+            content=searchable_content,
             source_type=SourceType.EMAIL,
             source_path=(
                 f"gmail://message/{message_id}"
@@ -567,6 +590,7 @@ def _env_int(
     name: str,
     default: int,
     minimum: int = 0,
+    maximum: Optional[int] = None,
 ) -> int:
     value = os.getenv(name)
 
@@ -576,7 +600,7 @@ def _env_int(
     try:
         parsed = int(value)
 
-        if parsed < minimum:
+        if parsed < minimum or (maximum is not None and parsed > maximum):
             raise ValueError
 
         return parsed
@@ -588,5 +612,3 @@ def _env_int(
         )
 
         return default
-
-

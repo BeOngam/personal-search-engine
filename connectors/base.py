@@ -106,6 +106,8 @@ class SourceConfig(BaseModel):
     paths: list[str] = Field(default_factory=list)
     extensions: list[str] = Field(default_factory=list)
     recursive: bool = True
+    query: str = ""
+    max_results: int = Field(default=100, ge=1, le=500)
 
 
 class APISettings(BaseModel):

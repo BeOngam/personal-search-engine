@@ -30,12 +30,8 @@ sources:
 
   email:
     enabled: false
-    paths:
-      - "~/mail"
-    extensions:
-      - ".mbox"
-      - ".eml"
-    recursive: false
+    query: ""
+    max_results: 100
 
 chunking:
   strategy: "recursive"

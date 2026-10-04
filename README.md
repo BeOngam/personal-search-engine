@@ -63,7 +63,7 @@ Results from both are merged with **Reciprocal Rank Fusion (RRF)** and then reor
 ├── connectors/                 # Turn a data source into Document objects
 │   ├── base.py                 #   BaseConnector (ABC), Document, Settings loader
 │   ├── docs.py                 #   PDF / DOCX / TXT / MD  ✅ implemented
-│   ├── email.py                #   Email (.mbox / .eml)   🚧 not yet implemented
+│   ├── email.py                #   Gmail API (read-only, OAuth)
 │   ├── notes.py                #   Notes apps (e.g. Obsidian) 🚧 not yet implemented
 │   └── chats.py                #   Chat exports            🚧 not yet implemented
 │
@@ -136,6 +136,13 @@ ollama pull llama3.2
 ### 5. Configure your data sources
 
 Edit `config.yaml` and point `sources.docs.paths` at the folders you want indexed.
+To index Gmail, set `sources.email.enabled: true`, configure an optional Gmail
+search query (for example `newer_than:1y`), and set `max_results` (1–500).
+Place your Google OAuth Desktop App file at `credentials.json`, then run the
+indexer interactively once to authorize access. The read-only OAuth token is
+saved as `token.json`; both credential files are excluded from Git. You can
+override their locations with `GMAIL_CREDENTIALS_FILE` and `GMAIL_TOKEN_FILE`,
+and override the Gmail query/limit with `GMAIL_QUERY` and `GMAIL_MAX_RESULTS`.
 
 ### 6. Run the indexer
 
@@ -146,7 +153,7 @@ from pipeline.indexer import Indexer
 
 settings = Settings.from_yaml('config.yaml')
 indexer = Indexer(settings)
-stats = indexer.index_docs()
+stats = indexer.index_all()
 print(stats)
 indexer.close()
 "
@@ -184,7 +191,7 @@ Everything is driven by `config.yaml`, loaded via `connectors.base.Settings`:
 
 | Section | Controls |
 |---|---|
-| `sources.*` | Which connectors are enabled, which paths/extensions they scan |
+| `sources.*` | Which connectors are enabled; paths/extensions for files, Gmail query and maximum message count for email |
 | `chunking` | Chunk size, overlap, tokenizer, minimum chunk size |
 | `embedding` | Embedding model, device (`cpu`/`cuda`/`mps`), batch size |
 | `vector_db` | Qdrant host/port, collection name, distance metric, `server` vs `in_memory` mode |
@@ -224,7 +231,9 @@ stats = indexer.reindex_file("~/Documents/report.pdf")
 indexer.close()
 ```
 
-Re-running the indexer is safe and cheap: `storage/metadata_store.py` hashes every file's content, so unchanged files are skipped and only new/modified files go through embedding again.
+Re-running the indexer is safe and cheap: `storage/metadata_store.py` hashes
+file contents for filesystem sources and indexed message content by Gmail
+message URI for email. Unchanged files/messages are skipped.
 
 ---
 
@@ -291,7 +300,8 @@ Everything downstream — chunking, embedding, storage, search, RAG — works au
 | `config.yaml` | ✅ Complete |
 | `connectors/base.py` | ✅ Complete |
 | `connectors/docs.py` (PDF/DOCX/TXT/MD) | ✅ Complete |
-| `connectors/email.py`, `notes.py`, `chats.py` | 🚧 Stubs — not implemented |
+| `connectors/email.py` | ✅ Gmail API, read-only OAuth, query/limit, searchable headers and body |
+| `connectors/notes.py`, `chats.py` | 🚧 Stubs — not implemented |
 | `pipeline/chunker.py` | ✅ Complete |
 | `pipeline/embedder.py` | ✅ Complete |
 | `pipeline/indexer.py` | ✅ Complete |
@@ -309,7 +319,6 @@ Everything downstream — chunking, embedding, storage, search, RAG — works au
 
 ## Roadmap
 
-- [ ] Implement `connectors/email.py` (`.mbox` / `.eml`)
 - [ ] Implement `connectors/notes.py` (Obsidian/Markdown vaults with wikilinks)
 - [ ] Implement `connectors/chats.py` (JSON/text chat exports)
 - [ ] Build `ui/app.py` — Streamlit search + chat interface
