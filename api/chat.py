@@ -7,13 +7,13 @@ import httpx
 from fastapi import FastAPI, HTTPException
 from loguru import logger
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 import os
 
 from connectors.base import Settings
 
 CONFIG_PATH = os.getenv("CONFIG_PATH", "config.yaml")
-settings = Settings.from_yaml(CONFIG_PATH)
 from pipeline.embedder import Embedder
 from api.reranker import Reranker, SearchResult
 from storage.fts_db import FTSDB
@@ -33,12 +33,15 @@ async def lifespan(app: FastAPI):
     _state["vector_db"] = VectorDB(settings, embedding_dim=embedder.dim)
     _state["fts_db"] = FTSDB(settings)
     _state["reranker"] = Reranker(settings)
+    _state["http_client"] = httpx.AsyncClient(timeout=60.0)
 
     logger.info("API is ready.")
-    yield
-
-    _state["fts_db"].close()
-    logger.info("API has shut down.")
+    try:
+        yield
+    finally:
+        await _state["http_client"].aclose()
+        _state["fts_db"].close()
+        logger.info("API has shut down.")
 
 
 app = FastAPI(title="Personal Search Engine", lifespan=lifespan)
@@ -131,7 +134,7 @@ async def chat(req: ChatRequest):
         raise HTTPException(status_code=400, detail="query must not be empty.")
 
     settings: Settings = _state["settings"]
-    results = _run_hybrid_search(req.query, req.top_k)
+    results = await run_in_threadpool(_run_hybrid_search, req.query, req.top_k)
 
     if not results:
         return ChatResponse(
@@ -143,7 +146,9 @@ async def chat(req: ChatRequest):
         f"[Source: {r.title}]\n{r.content}" for r in results
     )
 
-    answer = await _call_llm(settings, req.query, context)
+    answer = await _call_llm(
+        settings, req.query, context, _state["http_client"]
+    )
 
     sources = [
         SearchResponseItem(
@@ -161,7 +166,9 @@ async def chat(req: ChatRequest):
     return ChatResponse(answer=answer, sources=sources)
 
 
-async def _call_llm(settings: Settings, query: str, context: str) -> str:
+async def _call_llm(
+    settings: Settings, query: str, context: str, client: httpx.AsyncClient
+) -> str:
     cfg = settings.llm
 
     prompt = (
@@ -172,57 +179,59 @@ async def _call_llm(settings: Settings, query: str, context: str) -> str:
     )
 
     if cfg.provider == "ollama":
-        return await _call_ollama(cfg, prompt)
+        return await _call_ollama(cfg, prompt, client)
     elif cfg.provider == "anthropic":
-        return await _call_anthropic(cfg, prompt)
+        return await _call_anthropic(cfg, prompt, client)
     else:
         raise HTTPException(
             status_code=500, detail=f"Unknown provider: {cfg.provider}"
         )
 
 
-async def _call_ollama(cfg, prompt: str) -> str:
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        try:
-            resp = await client.post(
-                f"{cfg.host}/api/generate",
-                json={
-                    "model": cfg.model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {
-                        "temperature": cfg.temperature,
-                        "num_predict": cfg.max_tokens,
-                    },
+async def _call_ollama(
+    cfg, prompt: str, client: httpx.AsyncClient
+) -> str:
+    try:
+        resp = await client.post(
+            f"{cfg.host}/api/generate",
+            json={
+                "model": cfg.model,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": cfg.temperature,
+                    "num_predict": cfg.max_tokens,
                 },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return data.get("response", "").strip()
-        except httpx.HTTPError as e:
-            logger.error(f"Error communicating with Ollama: {e}")
-            raise HTTPException(
-                status_code=502, detail="Failed to connect to the Ollama server."
-            )
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get("response", "").strip()
+    except httpx.HTTPError as e:
+        logger.error(f"Error communicating with Ollama: {e}")
+        raise HTTPException(
+            status_code=502, detail="Failed to connect to the Ollama server."
+        )
 
 
-async def _call_anthropic(cfg, prompt: str) -> str:
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        try:
-            resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                json={
-                    "model": cfg.model,
-                    "max_tokens": cfg.max_tokens,
-                    "messages": [{"role": "user", "content": prompt}],
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            text_blocks = [b["text"] for b in data.get("content", []) if b.get("type") == "text"]
-            return "\n".join(text_blocks).strip()
-        except httpx.HTTPError as e:
-            logger.error(f"Error communicating with the Anthropic API: {e}")
-            raise HTTPException(
-                status_code=502, detail="Failed to connect to the Anthropic API."
-            )
+async def _call_anthropic(
+    cfg, prompt: str, client: httpx.AsyncClient
+) -> str:
+    try:
+        resp = await client.post(
+            "https://api.anthropic.com/v1/messages",
+            json={
+                "model": cfg.model,
+                "max_tokens": cfg.max_tokens,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        text_blocks = [b["text"] for b in data.get("content", []) if b.get("type") == "text"]
+        return "\n".join(text_blocks).strip()
+    except httpx.HTTPError as e:
+        logger.error(f"Error communicating with the Anthropic API: {e}")
+        raise HTTPException(
+            status_code=502, detail="Failed to connect to the Anthropic API."
+        )
