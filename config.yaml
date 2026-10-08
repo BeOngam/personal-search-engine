@@ -3,7 +3,7 @@ sources:
     enabled: true
     paths:
       - "~/Documents"
-      - "~/Desktop/notes"
+      - "E:/"
     extensions:
       - ".pdf"
       - ".docx"
@@ -48,7 +48,7 @@ embedding:
 
 vector_db:
   host: "localhost"
-  port: 6333
+  port: 16333
   collection_name: "personal_search"
   distance: "Cosine"
   mode: "server"

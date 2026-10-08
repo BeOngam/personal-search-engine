@@ -1,12 +1,10 @@
-
-
 services:
   qdrant:
     image: qdrant/qdrant:v1.10.1
     container_name: pse-qdrant
     ports:
-      - "6333:6333"
-      - "6334:6334"
+      - "16333:6333"        # REST API
+      - "16334:6334"        # gRPC
     volumes:
       - qdrant_data:/qdrant/storage
     restart: unless-stopped
@@ -28,6 +26,8 @@ services:
       - qdrant
     environment:
       - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - QDRANT_GRPC_PORT=6334
     restart: unless-stopped
 
   ui:
@@ -61,6 +61,8 @@ services:
       - qdrant
     environment:
       - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - QDRANT_GRPC_PORT=6334
     restart: unless-stopped
 
 volumes:
