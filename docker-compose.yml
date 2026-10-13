@@ -12,7 +12,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: dockerfile
     container_name: pse-api
     command: ["python", "main.py", "serve"]
     ports:
@@ -21,19 +21,23 @@ services:
       - ./config.yaml:/app/config.yaml:ro
       - ./data:/app/data
       - ./logs:/app/logs
-      - ${DOCS_PATH:-./sample-data}:/data/docs:ro
+      - type: bind
+        source: ${DOCS_PATH:-./sample-data}
+        target: /data/docs
+        read_only: true
     depends_on:
       - qdrant
     environment:
-      - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6333
-      - QDRANT_GRPC_PORT=6334
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      DOCS_PATH: /data/docs
+      LLM_HOST: http://host.docker.internal:11434
     restart: unless-stopped
 
   ui:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: dockerfile
     container_name: pse-ui
     command: ["python", "main.py", "ui", "--port", "8501"]
     ports:
@@ -49,20 +53,23 @@ services:
   scheduler:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: dockerfile
     container_name: pse-scheduler
     command: ["python", "main.py", "scheduler"]
     volumes:
       - ./config.yaml:/app/config.yaml:ro
       - ./data:/app/data
       - ./logs:/app/logs
-      - ${DOCS_PATH:-./sample-data}:/data/docs:ro
+      - type: bind
+        source: ${DOCS_PATH:-./sample-data}
+        target: /data/docs
+        read_only: true
     depends_on:
       - qdrant
     environment:
-      - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6333
-      - QDRANT_GRPC_PORT=6334
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      DOCS_PATH: /data/docs
     restart: unless-stopped
 
 volumes:

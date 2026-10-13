@@ -75,12 +75,15 @@ class Reranker:
         fused.sort(key=lambda r: r.score, reverse=True)
         return fused
 
-    def rerank(self, query: str, results: list[SearchResult]) -> list[SearchResult]:
+    def rerank(
+        self, query: str, results: list[SearchResult], top_k: int | None = None
+    ) -> list[SearchResult]:
         if not results:
             return []
 
+        limit = top_k or self.search_cfg.top_k_final
         if not self.cfg.enabled or self._model is None:
-            return results[: self.search_cfg.top_k_final]
+            return results[:limit]
 
         pairs = [(query, r.content) for r in results]
         raw_scores = self._model.predict(
@@ -91,16 +94,17 @@ class Reranker:
             r.score = float(score)
 
         results.sort(key=lambda r: r.score, reverse=True)
-        return results[: self.search_cfg.top_k_final]
+        return results[:limit]
 
     def search(
         self,
         query: str,
         vector_results: list[VectorSearchResult],
         fts_results: list[FTSResult],
+        top_k: int | None = None,
     ) -> list[SearchResult]:
         fused = self.fuse(vector_results, fts_results)
         logger.debug(f"fusion: {len(fused)} unique results")
-        final = self.rerank(query, fused)
+        final = self.rerank(query, fused, top_k)
         logger.debug(f"rerank: {len(final)} final results")
         return final

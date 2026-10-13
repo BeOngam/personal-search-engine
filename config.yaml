@@ -2,8 +2,7 @@ sources:
   docs:
     enabled: true
     paths:
-      - "~/Documents"
-      - "E:/"
+      - "E:\\music"
     extensions:
       - ".pdf"
       - ".docx"
@@ -77,10 +76,12 @@ reranker:
 
 llm:
   provider: "ollama"
-  model: "llama3.2"
+  model: "qwen3.5:latest"
   host: "http://localhost:11434"
   temperature: 0.1
   max_tokens: 1024
+  num_gpu: 0
+  think: false
   system_prompt: |
     You are a personal search assistant. Answer the user's question based on the provided documents.
     If the answer is not in the documents, honestly say you don't know.

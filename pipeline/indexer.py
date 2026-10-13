@@ -34,12 +34,21 @@ class IndexStats:
 
 
 class Indexer:
-    def __init__(self, settings: Settings):
+    def __init__(
+        self,
+        settings: Settings,
+        embedder: Embedder | None = None,
+        vector_db: VectorDB | None = None,
+        fts_db: FTSDB | None = None,
+    ):
         self.settings = settings
         self.chunker = Chunker(settings)
-        self.embedder = Embedder(settings)
-        self.vector_db = VectorDB(settings, embedding_dim=self.embedder.dim)
-        self.fts_db = FTSDB(settings)
+        self.embedder = embedder or Embedder(settings)
+        self.vector_db = vector_db or VectorDB(
+            settings, embedding_dim=self.embedder.dim
+        )
+        self.fts_db = fts_db or FTSDB(settings)
+        self._owns_fts_db = fts_db is None
         self.metadata_store = MetadataStore(settings)
 
     def index_docs(self, force: bool = False) -> IndexStats:
@@ -169,5 +178,6 @@ class Indexer:
                 self.settings.sources.pop("docs", None)
 
     def close(self) -> None:
-        self.fts_db.close()
+        if self._owns_fts_db:
+            self.fts_db.close()
         self.metadata_store.close()

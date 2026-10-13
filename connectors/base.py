@@ -98,6 +98,8 @@ class LLMSettings(BaseModel):
     host: str = "http://localhost:11434"
     temperature: float = 0.1
     max_tokens: int = 1024
+    num_gpu: Optional[int] = None
+    think: Optional[bool] = None
     system_prompt: str = "Answer based on the provided documents."
 
 
@@ -192,6 +194,10 @@ class Settings(BaseModel):
         llm_host = os.getenv("LLM_HOST")
         if llm_host:
             self.llm.host = llm_host
+        docs_path = os.getenv("DOCS_PATH")
+        docs = self.get_source("docs")
+        if docs_path and docs:
+            docs.paths = [docs_path]
 
     def get_source(self, name: str) -> Optional[SourceConfig]:
         """Return settings for a specific source."""

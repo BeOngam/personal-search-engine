@@ -105,16 +105,16 @@ class VectorDB:
         top_k: int | None = None,
     ) -> list[VectorSearchResult]:
         k = top_k or 20
-        hits = self._client.search(
+        response = self._client.query_points(
             collection_name=self.cfg.collection_name,
-            query_vector=query_vector.tolist(),
+            query=query_vector.tolist(),
             limit=k,
             with_payload=True,
         )
 
         results = []
-        for hit in hits:
-            p = hit.payload
+        for point in response.points:
+            p = point.payload
             results.append(VectorSearchResult(
                 chunk_id=p["chunk_id"],
                 doc_id=p["doc_id"],
@@ -122,7 +122,7 @@ class VectorDB:
                 source_path=p["source_path"],
                 title=p["title"],
                 source_type=p["source_type"],
-                score=hit.score,
+                score=point.score,
                 extra=p.get("extra", {}),
             ))
 

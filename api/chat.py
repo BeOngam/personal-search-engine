@@ -1,17 +1,19 @@
 ﻿from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from threading import Lock
 from typing import Optional
 
 import httpx
 from fastapi import FastAPI, HTTPException
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 import os
 
 from connectors.base import Settings
+from pipeline.indexer import Indexer
 
 CONFIG_PATH = os.getenv("CONFIG_PATH", "config.yaml")
 from pipeline.embedder import Embedder
@@ -20,6 +22,7 @@ from storage.fts_db import FTSDB
 from storage.vector_db import VectorDB
 
 _state: dict = {}
+_index_lock = Lock()
 
 
 @asynccontextmanager
@@ -49,7 +52,7 @@ app = FastAPI(title="Personal Search Engine", lifespan=lifespan)
 
 class SearchRequest(BaseModel):
     query: str
-    top_k: Optional[int] = None
+    top_k: Optional[int] = Field(default=None, ge=1, le=20)
 
 
 class SearchResponseItem(BaseModel):
@@ -64,7 +67,11 @@ class SearchResponseItem(BaseModel):
 
 class ChatRequest(BaseModel):
     query: str
-    top_k: Optional[int] = None
+    top_k: Optional[int] = Field(default=None, ge=1, le=20)
+
+
+class IndexRequest(BaseModel):
+    force: bool = False
 
 
 class ChatResponse(BaseModel):
@@ -86,12 +93,12 @@ def _run_hybrid_search(query: str, top_k: Optional[int] = None) -> list[SearchRe
     )
     fts_results = fts_db.search(query, top_k=settings.search.top_k_fts)
 
-    results = reranker.search(query, vector_results, fts_results)
-
-    if top_k:
-        results = results[:top_k]
-
-    return results
+    return reranker.search(
+        query,
+        vector_results,
+        fts_results,
+        top_k=top_k or settings.search.top_k_final,
+    )
 
 
 @app.get("/health")
@@ -105,6 +112,40 @@ def stats():
         "vector_count": _state["vector_db"].count(),
         "fts_count": _state["fts_db"].count(),
     }
+
+
+@app.post("/index")
+def index_documents(req: IndexRequest):
+    if not _index_lock.acquire(blocking=False):
+        raise HTTPException(status_code=409, detail="Indexing is already in progress.")
+
+    indexer = None
+    try:
+        indexer = Indexer(
+            _state["settings"],
+            embedder=_state["embedder"],
+            vector_db=_state["vector_db"],
+            fts_db=_state["fts_db"],
+        )
+        stats_list = indexer.index_all(force=req.force)
+        return [
+            {
+                "source": item.source,
+                "total_files": item.total_files,
+                "indexed_files": item.indexed_files,
+                "skipped_files": item.skipped_files,
+                "total_chunks": item.total_chunks,
+                "errors": item.errors,
+                "failed_files": item.failed_files,
+            }
+            for item in stats_list
+        ]
+    finally:
+        try:
+            if indexer is not None:
+                indexer.close()
+        finally:
+            _index_lock.release()
 
 
 @app.post("/search", response_model=list[SearchResponseItem])
@@ -192,21 +233,44 @@ async def _call_ollama(
     cfg, prompt: str, client: httpx.AsyncClient
 ) -> str:
     try:
+        options = {
+            "temperature": cfg.temperature,
+            "num_predict": cfg.max_tokens,
+        }
+        if cfg.num_gpu is not None:
+            options["num_gpu"] = cfg.num_gpu
+
+        payload = {
+            "model": cfg.model,
+            "prompt": prompt,
+            "stream": False,
+            "options": options,
+        }
+        if cfg.think is not None:
+            payload["think"] = cfg.think
+
         resp = await client.post(
             f"{cfg.host}/api/generate",
-            json={
-                "model": cfg.model,
-                "prompt": prompt,
-                "stream": False,
-                "options": {
-                    "temperature": cfg.temperature,
-                    "num_predict": cfg.max_tokens,
-                },
-            },
+            json=payload,
         )
         resp.raise_for_status()
         data = resp.json()
         return data.get("response", "").strip()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            detail = (
+                f"Ollama model '{cfg.model}' is not installed. "
+                f"Run `ollama pull {cfg.model}`."
+            )
+        else:
+            logger.error(
+                f"Ollama returned HTTP {e.response.status_code}: {e.response.text}"
+            )
+            detail = (
+                f"Ollama returned HTTP {e.response.status_code}. "
+                "Check the Ollama server logs and model runtime."
+            )
+        raise HTTPException(status_code=502, detail=detail) from e
     except httpx.HTTPError as e:
         logger.error(f"Error communicating with Ollama: {e}")
         raise HTTPException(

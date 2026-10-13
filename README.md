@@ -106,82 +106,69 @@ Results from both are merged with **Reciprocal Rank Fusion (RRF)** and then reor
 ### 1. Prerequisites
 
 - Python 3.10+
-- Docker (for Qdrant) — or set `vector_db.mode: in_memory` in `config.yaml` to skip Docker entirely for local testing
+- Docker Desktop with Docker Compose
 - [Ollama](https://ollama.ai) installed locally, if you want the `/chat` endpoint to work with a local LLM
 
 ### 2. Install dependencies
 
 ```bash
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-pip install -r requirements.txt
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
 > `torch` + `transformers` + `langchain` together are heavy. Expect this to take a few minutes and a few GB of disk space.
 
-### 3. Start Qdrant
+### 3. Start the application
 
 ```bash
-docker compose up -d
+.\start.ps1
 ```
 
-(Skip this if you set `vector_db.mode: in_memory` for local testing.)
+The script reads the first enabled document folder from `config.yaml`, starts
+Qdrant, the API, the UI, and the scheduler with Docker Compose, then opens
+`http://localhost:8501`. If your documents are in another folder, update
+`sources.docs.paths` in `config.yaml` or set `$env:DOCS_PATH` before running the
+script. Use **همگام‌سازی اسناد** in the UI to index or incrementally update the
+documents; the UI shows indexing errors and progress summary. Search and chat
+can then be used from the same page.
 
-### 4. Pull a local LLM (optional, for `/chat`)
+To enable chat, start Ollama and download the model configured by `llm.model` in `config.yaml`:
 
 ```bash
-ollama pull llama3.2
+ollama pull <model-name>
 ```
 
-### 5. Configure your data sources
+Search works without Ollama. To stop the services:
 
-Edit `config.yaml` and point `sources.docs.paths` at the folders you want indexed.
+```bash
+docker compose down
+```
+
 To index Gmail, set `sources.email.enabled: true`, configure an optional Gmail
 search query (for example `newer_than:1y`), and set `max_results` (1–500).
-Place your Google OAuth Desktop App file at `credentials.json`, then run the
-indexer interactively once to authorize access. The read-only OAuth token is
-saved as `token.json`; both credential files are excluded from Git. You can
-override their locations with `GMAIL_CREDENTIALS_FILE` and `GMAIL_TOKEN_FILE`,
-and override the Gmail query/limit with `GMAIL_QUERY` and `GMAIL_MAX_RESULTS`.
+Place your Google OAuth Desktop App file at `credentials.json`, then authorize
+once using the indexer. The read-only OAuth token is saved as `token.json`;
+both credential files are excluded from Git. Override their locations with
+`GMAIL_CREDENTIALS_FILE` and `GMAIL_TOKEN_FILE`, or the query/limit with
+`GMAIL_QUERY` and `GMAIL_MAX_RESULTS`.
 
-### 6. Run the indexer
+The API documentation is available at `http://localhost:8000/docs`.
 
-```bash
-python -c "
-from connectors.base import Settings
-from pipeline.indexer import Indexer
+### Build the Windows launcher
 
-settings = Settings.from_yaml('config.yaml')
-indexer = Indexer(settings)
-stats = indexer.index_all()
-print(stats)
-indexer.close()
-"
+Install the build tool once and create the launcher:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install pyinstaller
+.\build_exe.ps1
 ```
 
-Or, once implemented, simply:
-
-```bash
-python main.py --index
-```
-
-### 7. Start the API
-
-```bash
-uvicorn api.chat:app --reload --port 8000
-```
-
-### 8. Query it
-
-```bash
-curl -X POST http://localhost:8000/search \
-  -H "Content-Type: application/json" \
-  -d '{"query": "quarterly budget report"}'
-
-curl -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"query": "What did the budget report say about marketing spend?"}'
-```
+The executable is written to `dist\PersonalSearchEngine.exe`. It provides a
+desktop window for starting/stopping the Docker Compose services and opening
+the search UI. Keep the executable alongside the project (inside `dist`) or
+select the project folder in the launcher. The executable is a launcher, not a
+standalone copy of the application: Docker Desktop, the project files, and the
+project's `.venv` are still required.
 
 ---
 
