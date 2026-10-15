@@ -367,3 +367,5 @@ Use the `credentials.json.example` file only as a structural reference.
 ## Contributing
 
 This is a personal-scale project, but the connector interface is intentionally generic. If you build a connector for a new source, keep it self-contained in `connectors/`, follow the `BaseConnector` contract, and it should plug into indexing, search, and RAG without touching any other file.
+
+The project is in the development phase.
