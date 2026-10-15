@@ -4,6 +4,7 @@ venv/
 build/
 dist/
 *.spec
+wheels/*.whl
 .vscode/
 .idea/
 .env

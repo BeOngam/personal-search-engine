@@ -118,6 +118,33 @@ python -m venv .venv
 
 > `torch` + `transformers` + `langchain` together are heavy. Expect this to take a few minutes and a few GB of disk space.
 
+Place manually downloaded Linux CPython 3.11 wheels in the project's `wheels`
+folder before building. Docker will install the local Torch wheel and use
+compatible local dependency wheels during resolution; wheels for Windows or an
+incompatible Python version are ignored. The general PyPI wheel also declares
+CUDA dependencies even when this app is configured for CPU. Large Torch 2.14.1
+dependencies include:
+
+- `nvidia-cudnn-cu13==9.24.0.43` (~553 MB)
+- `nvidia-cublas==13.1.1.3` (~404 MB)
+- `triton==3.8.0` (~237 MB; choose the `cp311` Linux x86_64 wheel)
+- `nvidia-nccl-cu13==2.30.7` (~206 MB)
+- `nvidia-cufft==12.0.0.61` (~204 MB)
+- `nvidia-cusolver==12.0.4.66` (~192 MB)
+- `nvidia-cusparselt-cu13==0.8.1` (~170 MB)
+- `nvidia-cusparse==12.6.3.3` (~139 MB)
+- `nvidia-cuda-nvrtc==13.0.88` (~86 MB)
+- `nvidia-nvshmem-cu13==3.4.5` (~58 MB)
+- `nvidia-curand==10.4.0.35` (~57 MB)
+
+Download the `manylinux`/Linux `x86_64` wheel for each package from its
+[PyPI project page](https://pypi.org/), and use the exact versions above. The
+Torch wheel and each dependency must match the Linux Docker image, not Windows.
+From the wheel files currently in `wheels`, Docker can reuse Torch,
+`nvidia-nccl-cu13`, and `nvidia-nvshmem-cu13`. The files ending in
+`win_amd64.whl` and the `triton` file tagged `cp314` are not compatible with
+the Linux/Python 3.11 image and will not be installed.
+
 ### 3. Start the application
 
 ```bash
