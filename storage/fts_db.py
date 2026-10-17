@@ -3,11 +3,14 @@
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
 from connectors.base import Settings
-from pipeline.embedder import EmbeddedChunk
+
+if TYPE_CHECKING:
+    from pipeline.embedder import EmbeddedChunk
 
 
 @dataclass

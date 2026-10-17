@@ -16,7 +16,8 @@ client_secret_*.json
 
 data/
 logs/
-sample-data/
+sample-data/*
+!sample-data/.gitkeep
 
 *.pyc
 *.pyo

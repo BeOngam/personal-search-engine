@@ -33,7 +33,10 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Generator, Optional
 
-from bs4 import BeautifulSoup
+try:
+    from bs4 import BeautifulSoup
+except ImportError:  # pragma: no cover - optional dependency for HTML email parsing
+    BeautifulSoup = None
 from loguru import logger
 
 from connectors.base import (
@@ -513,6 +516,16 @@ def _html_to_text(
 
     if not html:
         return ""
+
+    if BeautifulSoup is None:
+        text = re.sub(
+            r"<(script|style|noscript)\b[^>]*>.*?</\1\s*>",
+            " ",
+            html,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        text = re.sub(r"<[^>]+>", "\n", text)
+        return re.sub(r"\s+", " ", text).strip()
 
     soup = BeautifulSoup(
         html,

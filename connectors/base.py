@@ -357,7 +357,7 @@ class BaseConnector(ABC):
 
             pattern = "**/*" if source_cfg.recursive else "*"
 
-            for file_path in base.glob(pattern):
+            for file_path in sorted(base.glob(pattern), key=lambda p: str(p).lower()):
                 if not file_path.is_file():
                     continue
                 if extensions and file_path.suffix.lower() not in extensions:
@@ -438,12 +438,17 @@ class BaseConnector(ABC):
         count = 0
         errors = 0
 
-        for doc in self.fetch(cfg):
-            if doc.is_empty():
-                logger.debug(f"Empty document skipped: {doc.source_path}")
-                continue
-            count += 1
-            yield doc
+        try:
+            iterator = self.fetch(cfg)
+            for doc in iterator:
+                if doc.is_empty():
+                    logger.debug(f"Empty document skipped: {doc.source_path}")
+                    continue
+                count += 1
+                yield doc
+        except Exception as exc:
+            errors += 1
+            logger.error(f"{self.__class__.__name__} failed while fetching: {exc}")
 
         logger.info(
             f"{self.__class__.__name__} finished: "

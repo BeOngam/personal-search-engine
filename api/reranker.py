@@ -1,13 +1,16 @@
 ﻿from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from loguru import logger
-from sentence_transformers import CrossEncoder
 
 from connectors.base import Settings
 from storage.fts_db import FTSResult
 from storage.vector_db import VectorSearchResult
+
+if TYPE_CHECKING:
+    from sentence_transformers import CrossEncoder
 
 
 @dataclass
@@ -29,6 +32,13 @@ class Reranker:
         self._model: CrossEncoder | None = None
 
         if self.cfg.enabled:
+            try:
+                from sentence_transformers import CrossEncoder
+            except ImportError as exc:
+                raise ImportError(
+                    "Reranking requires sentence-transformers. "
+                    "Install it with `pip install sentence-transformers`."
+                ) from exc
             logger.info(f"Loading reranker: {self.cfg.model}")
             self._model = CrossEncoder(self.cfg.model, device=self.cfg.device)
 

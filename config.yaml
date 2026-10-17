@@ -2,7 +2,7 @@ sources:
   docs:
     enabled: true
     paths:
-      - "E:\\music"
+      - "./sample-data"
     extensions:
       - ".pdf"
       - ".docx"

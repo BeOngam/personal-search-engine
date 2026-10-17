@@ -5,11 +5,16 @@ from dataclasses import dataclass
 
 import numpy as np
 from loguru import logger
-from qdrant_client import QdrantClient
-from qdrant_client.http import models as qmodels
 
 from connectors.base import Settings
 from pipeline.embedder import EmbeddedChunk
+
+try:
+    from qdrant_client import QdrantClient
+    from qdrant_client.http import models as qmodels
+except ImportError:
+    QdrantClient = None
+    qmodels = None
 
 
 # Fixed namespace so the same chunk_id always maps to the same point id.
@@ -47,6 +52,11 @@ class VectorDB:
         self._ensure_collection()
 
     def _connect(self) -> QdrantClient:
+        if QdrantClient is None:
+            raise ImportError(
+                "Vector storage requires qdrant-client. "
+                "Install it with `pip install qdrant-client`."
+            )
         if self.cfg.mode == "in_memory":
             logger.info("Qdrant in-memory mode")
             return QdrantClient(":memory:")

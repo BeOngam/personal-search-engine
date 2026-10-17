@@ -1,2 +1,8 @@
 
-from ui.app import main as run_ui
+__all__ = ["run_ui"]
+
+
+def run_ui() -> None:
+    from ui.app import main
+
+    main()

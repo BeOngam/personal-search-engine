@@ -106,24 +106,36 @@ Results from both are merged with **Reciprocal Rank Fusion (RRF)** and then reor
 ### 1. Prerequisites
 
 - Python 3.10+
-- Docker Desktop with Docker Compose
+- Docker Desktop (Windows/macOS) or Docker Engine with Docker Compose (Linux)
 - [Ollama](https://ollama.ai) installed locally, if you want the `/chat` endpoint to work with a local LLM
 
 ### 2. Install dependencies
 
 ```bash
 python -m venv .venv
+```
+
+Activate and install dependencies on Linux/macOS:
+
+```bash
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+On Windows PowerShell:
+
+```powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
 > `torch` + `transformers` + `langchain` together are heavy. Expect this to take a few minutes and a few GB of disk space.
 
 Place manually downloaded Linux CPython 3.11 wheels in the project's `wheels`
-folder before building. Docker will install the local Torch wheel and use
-compatible local dependency wheels during resolution; wheels for Windows or an
-incompatible Python version are ignored. The general PyPI wheel also declares
-CUDA dependencies even when this app is configured for CPU. Large Torch 2.14.1
-dependencies include:
+folder before building. Docker installs compatible local Linux x86_64 wheels
+first, then resolves any missing requirements from the package index. Windows
+wheels and the incompatible `cp314t` Triton wheel are ignored. The general PyPI
+Torch wheel also declares CUDA dependencies even when this app is configured
+for CPU. Large Torch 2.14.1 dependencies include:
 
 - `nvidia-cudnn-cu13==9.24.0.43` (~553 MB)
 - `nvidia-cublas==13.1.1.3` (~404 MB)
@@ -155,9 +167,23 @@ The script reads the first enabled document folder from `config.yaml`, starts
 Qdrant, the API, the UI, and the scheduler with Docker Compose, then opens
 `http://localhost:8501`. If your documents are in another folder, update
 `sources.docs.paths` in `config.yaml` or set `$env:DOCS_PATH` before running the
-script. Use **همگام‌سازی اسناد** in the UI to index or incrementally update the
+script. The checked-in default `./sample-data` folder is empty and safe to use.
+
+On Linux, start the same services with Docker Compose:
+
+```bash
+docker compose up --build -d
+```
+
+Set `DOCS_PATH` to a host folder before running Compose to index your own files,
+for example `DOCS_PATH=/home/me/Documents docker compose up --build -d`.
+Use **همگام‌سازی اسناد** in the UI to index or incrementally update the
 documents; the UI shows indexing errors and progress summary. Search and chat
 can then be used from the same page.
+
+Run the automated tests from the activated virtual environment with
+`python -m pytest -q`. Pytest is a development/test tool and can be installed
+separately with `python -m pip install pytest`.
 
 To enable chat, start Ollama and download the model configured by `llm.model` in `config.yaml`:
 
@@ -196,6 +222,10 @@ the search UI. Keep the executable alongside the project (inside `dist`) or
 select the project folder in the launcher. The executable is a launcher, not a
 standalone copy of the application: Docker Desktop, the project files, and the
 project's `.venv` are still required.
+
+On Linux or macOS, run `python launcher.py` from the project environment. The
+launcher uses Docker Compose directly on those platforms; the packaged `.exe`
+and `start.ps1` helper are Windows-specific.
 
 ---
 

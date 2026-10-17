@@ -13,7 +13,15 @@ from __future__ import annotations
 import argparse
 import sys
 import tempfile
+import unittest
 from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if sys.path and Path(sys.path[0]).resolve() == SCRIPT_DIR:
+    sys.path.pop(0)
+PROJECT_ROOT = SCRIPT_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from loguru import logger
 
@@ -21,6 +29,31 @@ from loguru import logger
 logger.remove()
 logger.add(sys.stderr, level="DEBUG", colorize=True,
            format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | {message}")
+
+
+class DocsConnectorTests(unittest.TestCase):
+    def test_file_iteration_is_sorted(self):
+        from connectors.base import Settings, SourceConfig
+        from connectors.docs import DocsConnector
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "z-last.txt").write_text("last", encoding="utf-8")
+            (root / "a-first.txt").write_text("first", encoding="utf-8")
+            settings = Settings(
+                sources={
+                    "docs": SourceConfig(
+                        enabled=True,
+                        paths=[str(root)],
+                        extensions=[".txt"],
+                        recursive=False,
+                    )
+                }
+            )
+            connector = DocsConnector(settings)
+            files = list(connector._iter_files(connector.source_cfg))
+
+        self.assertEqual([path.name for path in files], ["a-first.txt", "z-last.txt"])
 
 
 def make_sample_files(tmp_dir: Path) -> None:

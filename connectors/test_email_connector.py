@@ -1,26 +1,13 @@
 import base64
-import importlib.util
 import os
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from connectors.base import Settings, SourceConfig
-from connectors.email import EmailConnector
-
-# Load metadata in isolation because storage.__init__ eagerly imports Qdrant.
-_metadata_spec = importlib.util.spec_from_file_location(
-    "_metadata_store_under_test",
-    Path(__file__).parents[1] / "storage" / "metadata_store.py",
-)
-if _metadata_spec is None or _metadata_spec.loader is None:
-    raise ImportError("Could not load storage.metadata_store for tests")
-_metadata_module = importlib.util.module_from_spec(_metadata_spec)
-sys.modules[_metadata_spec.name] = _metadata_module
-_metadata_spec.loader.exec_module(_metadata_module)
-MetadataStore = _metadata_module.MetadataStore
+from connectors.email import EmailConnector, _html_to_text
+from storage.metadata_store import MetadataStore
 
 
 class _Request:
@@ -69,6 +56,15 @@ class _GmailService:
 
 
 class EmailConnectorTests(unittest.TestCase):
+    @patch("connectors.email.BeautifulSoup", None)
+    def test_html_body_fallback_strips_non_content_tags(self):
+        text = _html_to_text(
+            "<script>hidden()</script><style>.hidden {}</style>"
+            "<noscript>disabled</noscript><p>Visible text</p>"
+        )
+
+        self.assertEqual(text, "Visible text")
+
     @patch.dict(os.environ, {}, clear=True)
     def test_fetch_respects_configured_total_limit(self):
         settings = Settings(

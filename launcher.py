@@ -238,7 +238,7 @@ class SearchEngineLauncher:
 
         tk.Label(
             content,
-            text="برای اجرا به Docker Desktop و پوشهٔ کامل پروژه نیاز است.",
+            text="برای اجرا به Docker Desktop/Engine و پوشهٔ کامل پروژه نیاز است.",
             bg=BACKGROUND,
             fg=MUTED,
             font=("Segoe UI", 9),
@@ -315,15 +315,18 @@ class SearchEngineLauncher:
         self._set_busy(True)
         self.auto_open = True
         self._append_log("در حال ساخت و اجرای سرویس‌ها...")
-        command = [
-            "powershell.exe",
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            str(project / "start.ps1"),
-            "-NoBrowser",
-        ]
+        if sys.platform == "win32":
+            command = [
+                "powershell.exe",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(project / "start.ps1"),
+                "-NoBrowser",
+            ]
+        else:
+            command = ["docker", "compose", "up", "--build", "-d"]
         threading.Thread(
             target=self._run_command, args=(command, project), daemon=True
         ).start()

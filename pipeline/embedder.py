@@ -5,10 +5,14 @@ from typing import Generator
 
 import numpy as np
 from loguru import logger
-from sentence_transformers import SentenceTransformer
 
 from connectors.base import Settings
 from pipeline.chunker import Chunk
+
+try:
+    from sentence_transformers import SentenceTransformer
+except ImportError:
+    SentenceTransformer = None
 
 
 @dataclass
@@ -34,6 +38,11 @@ class EmbeddedChunk:
 class Embedder:
     def __init__(self, settings: Settings):
         self.cfg = settings.embedding
+        if SentenceTransformer is None:
+            raise ImportError(
+                "Embedding requires sentence-transformers. "
+                "Install it with `pip install sentence-transformers`."
+            )
         logger.info(f"Loading embedding model: {self.cfg.model}")
         self._model = SentenceTransformer(
             self.cfg.model,

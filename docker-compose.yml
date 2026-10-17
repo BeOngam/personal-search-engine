@@ -3,16 +3,23 @@ services:
     image: qdrant/qdrant:v1.10.1
     container_name: pse-qdrant
     ports:
-      - "16333:6333"        # REST API
-      - "16334:6334"        # gRPC
+      - "16333:6333"
+      - "16334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:6333/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
     restart: unless-stopped
 
   api:
     build:
       context: .
       dockerfile: dockerfile
+    image: personal-search-engine:local
     container_name: pse-api
     command: ["python", "main.py", "serve"]
     ports:
@@ -26,18 +33,23 @@ services:
         target: /data/docs
         read_only: true
     depends_on:
-      - qdrant
+      qdrant:
+        condition: service_healthy
     environment:
       QDRANT_HOST: qdrant
-      QDRANT_PORT: 6333
+      QDRANT_PORT: "6333"
       DOCS_PATH: /data/docs
       LLM_HOST: http://host.docker.internal:11434
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   ui:
-    build:
-      context: .
-      dockerfile: dockerfile
+    image: personal-search-engine:local
     container_name: pse-ui
     command: ["python", "main.py", "ui", "--port", "8501"]
     ports:
@@ -45,15 +57,14 @@ services:
     volumes:
       - ./config.yaml:/app/config.yaml:ro
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     environment:
-      - API_HOST=api
+      API_HOST: api
     restart: unless-stopped
 
   scheduler:
-    build:
-      context: .
-      dockerfile: dockerfile
+    image: personal-search-engine:local
     container_name: pse-scheduler
     command: ["python", "main.py", "scheduler"]
     volumes:
@@ -65,10 +76,11 @@ services:
         target: /data/docs
         read_only: true
     depends_on:
-      - qdrant
+      qdrant:
+        condition: service_healthy
     environment:
       QDRANT_HOST: qdrant
-      QDRANT_PORT: 6333
+      QDRANT_PORT: "6333"
       DOCS_PATH: /data/docs
     restart: unless-stopped
 
